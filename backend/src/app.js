@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import crypto from "crypto";
-import { getFetchLogs, getIpoItems, getLatestAnchor, getSettings, updateSettings } from "./db.js";
+import { getFetchLogs, getIpoItems, getLatestAnchor, getSettings, setMorningHeartbeatStatus, updateSettings } from "./db.js";
 import { runCollection } from "./radarService.js";
 import { restartScheduler } from "./scheduler.js";
 import { getCaseDetail, getCaseDossier, getCaseIntelligence, getRadarFeedResponse } from "./radarMock.js";
@@ -164,6 +164,28 @@ function todayYmdKst() {
     month: "2-digit",
     day: "2-digit"
   }).format(new Date());
+}
+
+function currentHourKst() {
+  return Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Seoul",
+      hour: "2-digit",
+      hourCycle: "h23"
+    }).format(new Date())
+  );
+}
+
+function ymdKstFromIso(isoString) {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(date);
 }
 
 function formatValue(value, fallback = "미정") {
@@ -453,6 +475,10 @@ export function createApp() {
 
       try {
         await sendTelegramMessages([message], { target: "status" });
+        await setMorningHeartbeatStatus({
+          morningCheckAt: new Date().toISOString(),
+          morningHeartbeatAlertAt: ""
+        });
       } catch (notifyError) {
         return res.status(500).json({
           ok: false,
@@ -473,6 +499,57 @@ export function createApp() {
       });
     } catch (error) {
       sendError(res, error);
+    }
+  });
+
+  register(app, "get", "/api/cron/morning-heartbeat", requireCronAccess, async (_req, res) => {
+    try {
+      setNoStore(res);
+      if (currentHourKst() < 9) {
+        return res.json({ ok: true, skipped: true, reason: "before_watch_window_kst_09" });
+      }
+
+      const settings = await getSettings();
+      const today = todayYmdKst();
+      const lastMorningCheckAt = settings.health?.lastMorningCheckAt || "";
+      const lastAlertAt = settings.health?.lastMorningHeartbeatAlertAt || "";
+      const morningCheckedToday = ymdKstFromIso(lastMorningCheckAt) === today;
+      if (morningCheckedToday) {
+        return res.json({ ok: true, healthy: true, lastMorningCheckAt });
+      }
+
+      const alreadyAlertedToday = ymdKstFromIso(lastAlertAt) === today;
+      if (alreadyAlertedToday) {
+        return res.json({
+          ok: true,
+          healthy: false,
+          skipped: true,
+          reason: "already_alerted_today",
+          lastMorningCheckAt
+        });
+      }
+
+      const message = [
+        "ALERT 시스템 점검 누락 감지",
+        `시각: ${new Date().toISOString()}`,
+        `최근점검: ${lastMorningCheckAt || "기록 없음"}`,
+        `수집상태: ${settings.lastStatus || "미정"}`,
+        `마지막갱신: ${settings.lastFetchedAt || "없음"}`,
+        "08:00 KST morning-check 실행 여부를 확인하세요"
+      ].join("\n");
+
+      await sendTelegramMessages([message], { target: "status" });
+      await setMorningHeartbeatStatus({ morningHeartbeatAlertAt: new Date().toISOString() });
+
+      return res.json({
+        ok: true,
+        healthy: false,
+        alertSent: true,
+        reason: "morning_check_missing",
+        lastMorningCheckAt
+      });
+    } catch (error) {
+      return sendError(res, error);
     }
   });
 

@@ -13,6 +13,10 @@
     {
       "path": "/cron/morning-check",
       "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/cron/morning-heartbeat",
+      "schedule": "0 1 * * *"
     }
   ]
 }

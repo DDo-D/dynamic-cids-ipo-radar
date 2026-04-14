@@ -158,7 +158,9 @@ export async function initDb() {
     ["collector.supportsLastModified", false],
     ["lastStatus", "초기화됨"],
     ["lastFetchedAt", ""],
-    ["lastAnchorFinal", DEFAULT_SETTINGS.prevAnchor]
+    ["lastAnchorFinal", DEFAULT_SETTINGS.prevAnchor],
+    ["health.lastMorningCheckAt", ""],
+    ["health.lastMorningHeartbeatAlertAt", ""]
   ]);
 }
 
@@ -183,7 +185,11 @@ export async function getSettings() {
     },
     lastStatus: map.lastStatus || "초기화됨",
     lastFetchedAt: map.lastFetchedAt || "",
-    lastAnchorFinal: Number(map.lastAnchorFinal ?? DEFAULT_SETTINGS.prevAnchor)
+    lastAnchorFinal: Number(map.lastAnchorFinal ?? DEFAULT_SETTINGS.prevAnchor),
+    health: {
+      lastMorningCheckAt: map["health.lastMorningCheckAt"] || "",
+      lastMorningHeartbeatAlertAt: map["health.lastMorningHeartbeatAlertAt"] || ""
+    }
   };
 }
 
@@ -214,6 +220,13 @@ export async function setCollectionStatus({ status, fetchedAt, anchorFinal }) {
   if (status !== undefined) entries.push(["lastStatus", status]);
   if (fetchedAt !== undefined) entries.push(["lastFetchedAt", fetchedAt]);
   if (anchorFinal !== undefined) entries.push(["lastAnchorFinal", anchorFinal]);
+  if (entries.length > 0) await upsertSettingsEntries(entries);
+}
+
+export async function setMorningHeartbeatStatus({ morningCheckAt, morningHeartbeatAlertAt }) {
+  const entries = [];
+  if (morningCheckAt !== undefined) entries.push(["health.lastMorningCheckAt", morningCheckAt || ""]);
+  if (morningHeartbeatAlertAt !== undefined) entries.push(["health.lastMorningHeartbeatAlertAt", morningHeartbeatAlertAt || ""]);
   if (entries.length > 0) await upsertSettingsEntries(entries);
 }
 
