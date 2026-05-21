@@ -5,4 +5,7 @@ backend/data/
 frontend/dist/
 *.log
 supabase/.temp/
+backend/.env
 backend/.env.vercel*
+.deploy-urls.txt
+.omc/

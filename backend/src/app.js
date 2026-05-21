@@ -10,9 +10,25 @@ import { sendTelegramMessages } from "./telegramNotifier.js";
 
 const readOnlyMode = String(process.env.READ_ONLY || "false") === "true";
 const adminKey = String(process.env.ADMIN_KEY || "");
-const corsOrigin = process.env.CORS_ORIGIN || "*";
 const cronSecret = String(process.env.CRON_SECRET || "");
 const isProd = String(process.env.NODE_ENV || "").toLowerCase() === "production";
+
+const VERCEL_FRONTEND_ORIGINS = [
+  "https://ipo-radar-frontend.vercel.app",
+  "https://ipo-radar-frontend-ddo-d.vercel.app",
+  "https://ipo-radar-frontend-ekswkd01-9322-ddo-d.vercel.app"
+];
+
+function resolveCorsOrigin() {
+  const configured = String(process.env.CORS_ORIGIN || "").trim();
+  if (configured && configured !== "*") return configured;
+  if (isProd && process.env.VERCEL) {
+    return VERCEL_FRONTEND_ORIGINS.join(",");
+  }
+  return configured || "*";
+}
+
+const corsOrigin = resolveCorsOrigin();
 const allowSignalReplay = String(process.env.ALLOW_SIGNAL_REPLAY || "").toLowerCase() === "true";
 
 const ADMIN_PROBE_WINDOW_MS = 10 * 60 * 1000;
@@ -226,7 +242,7 @@ function register(app, method, path, ...handlers) {
 }
 
 export function createApp() {
-  if (isProd && (!corsOrigin || corsOrigin === "*")) {
+  if (isProd && !process.env.VERCEL && (!corsOrigin || corsOrigin === "*")) {
     throw new Error("CORS_ORIGIN must be explicitly configured in production");
   }
   if (isProd && !cronSecret) {
@@ -243,9 +259,30 @@ export function createApp() {
     next();
   });
 
+  const allowedOrigins =
+    corsOrigin === "*"
+      ? true
+      : corsOrigin.split(",").map((value) => value.trim()).filter(Boolean);
+
+  // Vercel production: reflect browser Origin (avoids Failed to fetch from frontend *.vercel.app)
+  const corsOriginOption = process.env.VERCEL
+    ? true
+    : allowedOrigins === true
+      ? true
+      : (origin, callback) => {
+          if (!origin) return callback(null, true);
+          if (Array.isArray(allowedOrigins) && allowedOrigins.includes(origin)) {
+            return callback(null, true);
+          }
+          if (/^https:\/\/ipo-radar-frontend[\w-]*\.vercel\.app$/.test(origin)) {
+            return callback(null, true);
+          }
+          return callback(null, false);
+        };
+
   app.use(
     cors({
-      origin: corsOrigin === "*" ? true : corsOrigin.split(",").map((value) => value.trim()),
+      origin: corsOriginOption,
       methods: ["GET", "POST", "OPTIONS"],
       allowedHeaders: ["Content-Type", "x-admin-key", "Authorization"],
       maxAge: 86400

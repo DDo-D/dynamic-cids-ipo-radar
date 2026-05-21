@@ -1,5 +1,14 @@
 const ADMIN_KEY_STORAGE = "ipoRadarAdminKey";
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+const PRODUCTION_API_BASE = "https://ipo-radar-backend.vercel.app";
+
+function resolveApiBaseUrl() {
+  const fromEnv = String(import.meta.env.VITE_API_BASE_URL || "").trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, "");
+  if (import.meta.env.PROD) return PRODUCTION_API_BASE;
+  return "";
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 let inMemoryAdminKey = "";
 
 function getAdminKey() {

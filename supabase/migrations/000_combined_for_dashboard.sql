@@ -1,3 +1,6 @@
+-- Paste this entire file in Supabase SQL Editor if CLI db push fails.
+-- https://supabase.com/dashboard/project/qghquidouqdrjxdjyrgy/sql/new
+
 create table if not exists public.settings (
   key text primary key,
   value text
@@ -49,3 +52,4 @@ create table if not exists public.ipo_items (
 
 create index if not exists idx_ipo_items_source_url on public.ipo_items (source_url);
 create index if not exists idx_fetch_logs_fetched_at on public.fetch_logs (fetched_at desc);
+create index if not exists idx_ipo_items_listing_date on public.ipo_items (listing_date asc);

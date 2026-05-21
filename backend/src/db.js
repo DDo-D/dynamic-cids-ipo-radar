@@ -26,6 +26,12 @@ function isMissingSettingsTableError(error) {
 }
 
 async function runSupabaseDbPush() {
+  if (process.env.VERCEL) {
+    throw new Error(
+      "Supabase schema is missing on production. Run locally: cd supabase && npx supabase db push"
+    );
+  }
+
   const accessToken = process.env.SUPABASE_ACCESS_TOKEN || "";
   const projectRef = process.env.SUPABASE_PROJECT_REF || "";
   if (!accessToken || !projectRef) {

@@ -1,8 +1,15 @@
 import { initDb } from "../src/db.js";
 import { createApp } from "../src/app.js";
 
-const app = createApp();
+let app = null;
 let readyPromise = null;
+
+function getApp() {
+  if (!app) {
+    app = createApp();
+  }
+  return app;
+}
 
 async function ensureReady() {
   if (!readyPromise) {
@@ -14,7 +21,7 @@ async function ensureReady() {
 export default async function handler(req, res) {
   try {
     await ensureReady();
-    return app(req, res);
+    return getApp()(req, res);
   } catch (error) {
     const isProd = String(process.env.NODE_ENV || "").toLowerCase() === "production";
     if (isProd) {
